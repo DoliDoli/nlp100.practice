@@ -161,28 +161,3 @@ def save_case_frame_patterns(_case_frame_patterns: list, file_name: str) -> None
 
 save_case_frame_patterns(case_frame_patterns(chunked_sentences), 'case_frame_patterns.txt')
 #ここまで#
-
-
-save_case_patterns(case_patterns(chunked_sentences), 'case_patterns.txt')
-
-
-def print_case_pattern_ranking(_grep_str: str) -> None:
-    """
-    コーパス(case_pattern.txt)中で出現頻度の高い順に上位20件をUNIXコマンドを用いてを表示する.
-    `cat case_patterns.txt | grep '^する\t' | sort | uniq -c | sort -r | head -20`のようなUnixコマンドを実行してprintしている.
-    grepの部分は引数`_grep_str`に応じて付加される.
-    :param _grep_str 検索条件となる動詞
-    """
-    #cat = unixコマンド　windowsで使えない
-    #要Unixコマンド学習
-    _grep_str = '' if _grep_str == '' else '| grep \'^{}\t\''.format(_grep_str)
-    print(subprocess.run('cat case_patterns.txt {} | sort | uniq -c | sort -r | head -10'.format(_grep_str), shell=True))
-
-
-
-
-
-# コーパス中で頻出する述語と格パターンの組み合わせ（上位10件）
-# 「する」「見る」「与える」という動詞の格パターン（コーパス中で出現頻度の高い順に上位10件）
-for grep_str in ['', 'する', '見る', '与える']:
-    print_case_pattern_ranking(grep_str)

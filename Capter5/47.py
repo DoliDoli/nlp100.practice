@@ -35,6 +35,18 @@ class Chunk:
         return any([_morph.pos == '名詞' for _morph in self.morphs])
     def has_verb(self) -> bool:
         return any([_morph.pos == '動詞' for _morph in self.morphs])
+    
+    def has_sahen_connection_noun_plus_wo(self) -> bool:
+        """
+        「サ変接続名詞+を（助詞）」を含むかどうかを返す.
+        """
+        for idx, _morph in enumerate(self.morphs):
+            if _morph.pos == '名詞' and _morph.pos1 == 'サ変接続' and len(self.morphs[idx:]) > 1 and \
+                            self.morphs[idx + 1].pos == '助詞' and self.morphs[idx + 1].base == 'を':
+                return True
+
+        return False
+
     #新規#
     def first_verb(self) -> Morph:
         return [_morph for _morph in self.morphs if _morph.pos == '動詞'][0]
@@ -113,55 +125,60 @@ def save_graph(dot: str, file_name: str) -> None:
 
 paired_sentences = [[chunk.pair(sentence) for chunk in sentence if is_valid_chunk(chunk, sentence)] for sentence in chunked_sentences if len(sentence) > 1]
 
-def case_patterns(_chunked_sentences: list) -> list:
+def sorted_double_list(key_list: list, value_list: list) -> tuple:
     """
-    動詞の格のパターン(動詞と助詞の組み合わせ)のリストを返します.(「格」は英語で"Case"というらしい.)
+    2つのリストを引数に取り、一方のリストをキー、もう一方のリストを値としてdict化しキーでソートしてから、元通りに2つのリストに分解してタプルとして返す.
+    :param key_list ソートするときのキーとなるリスト
+    :param value_list keyに従ってソートされるリスト
+    :return key_listでソート済みの2つのリストのタプル
+    """
+    double_list = list(zip(key_list, value_list))
+    double_list = dict(double_list)
+    double_list = sorted(double_list.items())
+    return [pair[0] for pair in double_list], [pair[1] for pair in double_list]
+
+
+def sahen_case_frame_patterns(_chunked_sentences: list) -> list:
+    """
+    動詞の格フレームのパターン(動詞と助詞の組み合わせ)のリストを返します.
     :param _chunked_sentences チャンク化された形態素を文章ごとにリスト化したもののリスト
-    :return 格のパターン(例えば['与える', ['に', 'を']])のリスト
+    :return 格のパターン(例えば['する', ['て', 'は'], ['泣いて', 'いた事だけは']])のリスト
     """
-    _case_pattern = []
+    _sahen_case_frame_patterns = []
     for sentence in _chunked_sentences:
         for _chunk in sentence:
             if not _chunk.has_verb():
                 continue
 
-            particles = [c.last_particle().base for c in sentence if c.dst == _chunk.srcs and c.has_particle()]
+            sahen_connection_noun = [c.join_morphs() for c in sentence if c.dst == _chunk.srcs and c.has_sahen_connection_noun_plus_wo()]
+            clauses = [c.join_morphs() for c in sentence if c.dst == _chunk.srcs and not c.has_sahen_connection_noun_plus_wo() and c.has_particle()]
+            particles = [c.last_particle().base for c in sentence if c.dst == _chunk.srcs and not c.has_sahen_connection_noun_plus_wo() and c.has_particle()]
 
-            if len(particles) > 0:
-                _case_pattern.append([_chunk.first_verb().base, sorted(particles)])
+            if len(sahen_connection_noun) > 0 and len(particles) > 0:
+                _sahen_case_frame_patterns.append([sahen_connection_noun[0] + _chunk.first_verb().base, *sorted_double_list(particles, clauses)])
 
-    return _case_pattern
+    return _sahen_case_frame_patterns
 
 
-def save_case_patterns(_case_patterns: list, file_name: str) -> None:
+def save_sahen_case_frame_patterns(_sahen_case_frame_patterns: list, file_name: str) -> None:
     """
     動詞の格のパターン(動詞と助詞の組み合わせ)のリストをファイルに保存します.
-    :param _case_patterns 格のパターン(例えば['与える', ['に', 'を']])のリスト
+    :param _sahen_case_frame_patterns 格フレーム(例えば['する', ['て', 'は'], ['泣いて', 'いた事だけは']])のリスト
     :param file_name 保存先のファイル名
     """
     with open(file_name, mode='w', encoding='utf-8') as output_file:
-        for _case in _case_patterns:
-            output_file.write('{}\t{}\n'.format(_case[0], ' '.join(_case[1])))
+        for case in _sahen_case_frame_patterns:
+            output_file.write('{}\t{}\t{}\n'.format(case[0], ' '.join(case[1]), ' '.join(case[2])))
 
 
-save_case_patterns(case_patterns(chunked_sentences), 'case_patterns.txt')
+save_sahen_case_frame_patterns(sahen_case_frame_patterns(chunked_sentences), 'sahen_case_frame_patterns.txt')
 
 
-def print_case_pattern_ranking(_grep_str: str) -> None:
-    """
-    コーパス(case_pattern.txt)中で出現頻度の高い順に上位20件をUNIXコマンドを用いてを表示する.
-    `cat case_patterns.txt | grep '^する\t' | sort | uniq -c | sort -r | head -20`のようなUnixコマンドを実行してprintしている.
-    grepの部分は引数`_grep_str`に応じて付加される.
-    :param _grep_str 検索条件となる動詞
-    """
-    #cat = unixコマンド　windowsで使えない
-    #要Unixコマンド学習
-    _grep_str = '' if _grep_str == '' else '| grep \'^{}\t\''.format(_grep_str)
-    print(subprocess.run('cat case_patterns.txt {} | sort | uniq -c | sort -r | head -10'.format(_grep_str), shell=True))
+# UNIXコマンドうまく使えない問題　→　macbookproがほしす
+""""
+# コーパス中で頻出する述語（サ変接続名詞+を+動詞）をUNIXコマンドを用いて確認
+print(subprocess.run('cat sahen_case_frame_patterns.txt | cut -f 1 | sort | uniq -c | sort -r | head -10', shell=True))
 
-
-# コーパス中で頻出する述語と格パターンの組み合わせ（上位10件）
-# 「する」「見る」「与える」という動詞の格パターン（コーパス中で出現頻度の高い順に上位10件）
-# 本来UNIXコマンドでやる想定の箇所
-for grep_str in ['', 'する', '見る', '与える']:
-    print_case_pattern_ranking(grep_str)
+# コーパス中で頻出する述語と助詞パターンをUNIXコマンドを用いて確認
+print(subprocess.run('cat sahen_case_frame_patterns.txt | cut -f 1,2 | sort | uniq -c | sort -r | head -10', shell=True))
+""""
