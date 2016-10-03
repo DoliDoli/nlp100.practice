@@ -1,3 +1,5 @@
+# そもそもt-SNEがよく分からない問題
+
 import codecs
 import re
 import copy
