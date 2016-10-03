@@ -4,6 +4,7 @@ import collections
 
 fin = codecs.open('82.txt', 'r', 'utf_8')
 wordlist = []
+# lowercase , uppercaseが何を咲いているか不明
 lowercase = [chr(i) for i in range(97,97+26)]
 uppercase = [chr(i) for i in range(65,65+26)]
 wcase = lowercase + uppercase
